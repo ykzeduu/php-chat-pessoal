@@ -48,7 +48,7 @@
             }
         }
 
-        /* Tela de Login Centralizada e Corrigida */
+        /* Tela de Login */
         #login-screen {
             position: absolute; 
             inset: 0; 
@@ -78,7 +78,7 @@
             font-size: 1.5rem; 
         }
 
-        /* Área de Mensagens */
+        /* Área do Chat */
         #chat { 
             flex: 1; 
             overflow-y: auto; 
@@ -112,9 +112,59 @@
         .msg img { max-width: 100%; max-height: 300px; border-radius: 6px; margin-top: 8px; display: block; }
         .msg small { font-size: 0.65rem; color: var(--text-muted); float: right; margin-top: 5px; margin-left: 10px; }
 
+        /* Rodapé que agrupa a pré-visualização e os inputs */
+        #footer-chat {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-panel);
+        }
+
+        /* Área do Menu de Pré-visualização da Imagem */
+        #preview-container {
+            display: none; /* Escondido por padrão */
+            padding: 12px 16px;
+            background: #182229;
+            border-bottom: 1px solid #222d34;
+            align-items: center;
+            gap: 15px;
+            animation: slideUp 0.2s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        #preview-img {
+            max-height: 80px;
+            max-width: 120px;
+            border-radius: 6px;
+            object-fit: cover;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        .preview-info {
+            flex: 1;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .preview-info span {
+            display: block;
+            color: var(--text-main);
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .btn-cancelar-preview {
+            background: #ea4335;
+            color: white;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+        .btn-cancelar-preview:hover { background: #c53026; }
+
         /* Barra de Envio Inferior */
         #form-envio { 
-            background: var(--bg-panel); 
             padding: 12px 16px; 
             display: flex; 
             gap: 12px; 
@@ -172,17 +222,26 @@
 
     <div id="chat"></div>
 
-    <form id="form-envio" onsubmit="enviarMensagem(event)">
-        <input type="file" id="input-imagem" accept="image/*" style="display:none">
+    <div id="footer-chat">
         
-        <button type="button" class="btn-icon" onclick="document.getElementById('input-imagem').click()" title="Enviar Imagem">📷</button>
-        
-        <input type="text" id="input-texto" placeholder="Digite uma mensagem..." autocomplete="off">
-        
-        <button type="submit">Enviar</button>
-        
-        <button type="button" class="btn-icon" onclick="limparChat()" title="Apagar todo o histórico" style="color: #ef4444;">🗑️</button>
-    </form>
+        <div id="preview-container">
+            <img id="preview-img" src="" alt="Preview">
+            <div class="preview-info">
+                <span>Imagem selecionada</span>
+                Pronta para enviar
+            </div>
+            <button type="button" class="btn-cancelar-preview" onclick="cancelarImagem()">Remover</button>
+        </div>
+
+        <form id="form-envio" onsubmit="enviarMensagem(event)">
+            <input type="file" id="input-imagem" accept="image/*" style="display:none" onchange="mostrarPreview(this)">
+            
+            <button type="button" class="btn-icon" onclick="document.getElementById('input-imagem').click()" title="Selecionar Imagem">📷</button>
+            <input type="text" id="input-texto" placeholder="Digite uma mensagem..." autocomplete="off">
+            <button type="submit">Enviar</button>
+            <button type="button" class="btn-icon" onclick="limparChat()" title="Apagar todo o histórico" style="color: #ef4444;">🗑️</button>
+        </form>
+    </div>
 
 </div>
 
@@ -194,14 +253,32 @@
         const nome = document.getElementById('username').value.trim();
         if(nome) {
             usuarioAtual = nome;
-            // Efeito suave de transição para sumir a tela de login
             document.getElementById('login-screen').style.opacity = '0';
             setTimeout(() => document.getElementById('login-screen').style.display = 'none', 300);
             
             carregarMensagens();
-            // Polling de atualização rápida das mensagens
             setInterval(carregarMensagens, 1500);
         }
+    }
+
+    // Função que gera a miniatura e abre o menu de confirmação
+    function mostrarPreview(input) {
+        const arquivo = input.files[0];
+        if (arquivo) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('preview-img').src = e.target.result;
+                document.getElementById('preview-container').style.display = 'flex';
+            }
+            reader.readAsDataURL(arquivo);
+        }
+    }
+
+    // Caso mude de ideia, limpa o input de arquivo e some com o menu
+    function cancelarImagem() {
+        document.getElementById('input-imagem').value = "";
+        document.getElementById('preview-container').style.display = 'none';
+        document.getElementById('preview-img').src = "";
     }
 
     async function carregarMensagens() {
@@ -209,14 +286,12 @@
             const res = await fetch('api.php');
             const mensagens = await res.json();
             
-            // Só renderiza se houver alteração no total de mensagens (evita piscar a tela)
             if(mensagens.length !== ultimaMsgCount) {
                 const chat = document.getElementById('chat');
                 chat.innerHTML = "";
                 
                 mensagens.forEach(m => {
                     const div = document.createElement('div');
-                    // Define se a mensagem fica do lado direito (me) ou esquerdo (other)
                     const classeDono = m.usuario === usuarioAtual ? 'minha-msg' : 'outra-msg';
                     div.className = `msg ${classeDono}`;
                     div.innerHTML = `
@@ -228,7 +303,6 @@
                     chat.appendChild(div);
                 });
                 
-                // Rola automaticamente o chat para o final (última mensagem)
                 chat.scrollTop = chat.scrollHeight;
                 ultimaMsgCount = mensagens.length;
             }
@@ -249,9 +323,9 @@
         formData.append('texto', texto);
         if(imagem) formData.append('imagem', imagem);
 
-        // Limpa os campos imediatamente após o clique para melhorar a experiência
+        // Limpa os campos de texto e esconde o menu de preview
         document.getElementById('input-texto').value = "";
-        document.getElementById('input-imagem').value = "";
+        cancelarImagem(); 
 
         await fetch('api.php', { method: 'POST', body: formData });
         carregarMensagens();
@@ -272,7 +346,7 @@
 
             if (res.ok && resultado.sucesso) {
                 alert(resultado.mensagem);
-                ultimaMsgCount = 0; // Força a renderização imediata do chat vazio
+                ultimaMsgCount = 0;
                 carregarMensagens();
             } else {
                 alert(resultado.mensagem || "Erro ao tentar apagar.");
