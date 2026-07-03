@@ -28,7 +28,7 @@
             height: 100vh; 
         }
 
-        /* Container Principal para simular um app */
+        /* Container Principal do App */
         #app-container {
             width: 100%;
             max-width: 1000px;
@@ -48,7 +48,7 @@
             }
         }
 
-        /* Tela de Login */
+        /* Tela de Login Centralizada e Corrigida */
         #login-screen {
             position: absolute; 
             inset: 0; 
@@ -72,9 +72,13 @@
             width: 100%;
         }
 
-        .login-box h2 { margin-bottom: 20px; font-weight: 500; font-size: 1.5rem; }
+        .login-box h2 { 
+            margin-bottom: 20px; 
+            font-weight: 500; 
+            font-size: 1.5rem; 
+        }
 
-        /* Chat */
+        /* Área de Mensagens */
         #chat { 
             flex: 1; 
             overflow-y: auto; 
@@ -96,7 +100,10 @@
             animation: fadeIn 0.2s ease-in-out;
         }
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(5px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
 
         .minha-msg { align-self: flex-end; background: var(--msg-me); border-top-right-radius: 2px; }
         .outra-msg { align-self: flex-start; background: var(--msg-other); border-top-left-radius: 2px; }
@@ -105,7 +112,7 @@
         .msg img { max-width: 100%; max-height: 300px; border-radius: 6px; margin-top: 8px; display: block; }
         .msg small { font-size: 0.65rem; color: var(--text-muted); float: right; margin-top: 5px; margin-left: 10px; }
 
-        /* Barra de Envio */
+        /* Barra de Envio Inferior */
         #form-envio { 
             background: var(--bg-panel); 
             padding: 12px 16px; 
@@ -144,6 +151,9 @@
             color: var(--text-muted);
             padding: 8px;
             font-size: 1.4rem;
+            border: none;
+            cursor: pointer;
+            transition: color 0.2s;
         }
         .btn-icon:hover { color: var(--text-main); background: transparent; }
     </style>
@@ -164,9 +174,14 @@
 
     <form id="form-envio" onsubmit="enviarMensagem(event)">
         <input type="file" id="input-imagem" accept="image/*" style="display:none">
-        <button type="button" class="btn-icon" onclick="document.getElementById('input-imagem').click()">📷</button>
+        
+        <button type="button" class="btn-icon" onclick="document.getElementById('input-imagem').click()" title="Enviar Imagem">📷</button>
+        
         <input type="text" id="input-texto" placeholder="Digite uma mensagem..." autocomplete="off">
+        
         <button type="submit">Enviar</button>
+        
+        <button type="button" class="btn-icon" onclick="limparChat()" title="Apagar todo o histórico" style="color: #ef4444;">🗑️</button>
     </form>
 
 </div>
@@ -179,9 +194,12 @@
         const nome = document.getElementById('username').value.trim();
         if(nome) {
             usuarioAtual = nome;
+            // Efeito suave de transição para sumir a tela de login
             document.getElementById('login-screen').style.opacity = '0';
             setTimeout(() => document.getElementById('login-screen').style.display = 'none', 300);
+            
             carregarMensagens();
+            // Polling de atualização rápida das mensagens
             setInterval(carregarMensagens, 1500);
         }
     }
@@ -191,12 +209,14 @@
             const res = await fetch('api.php');
             const mensagens = await res.json();
             
+            // Só renderiza se houver alteração no total de mensagens (evita piscar a tela)
             if(mensagens.length !== ultimaMsgCount) {
                 const chat = document.getElementById('chat');
                 chat.innerHTML = "";
+                
                 mensagens.forEach(m => {
                     const div = document.createElement('div');
-                    // Verifica se a mensagem é sua ou de outro usuário para aplicar a classe correta
+                    // Define se a mensagem fica do lado direito (me) ou esquerdo (other)
                     const classeDono = m.usuario === usuarioAtual ? 'minha-msg' : 'outra-msg';
                     div.className = `msg ${classeDono}`;
                     div.innerHTML = `
@@ -207,6 +227,8 @@
                     `;
                     chat.appendChild(div);
                 });
+                
+                // Rola automaticamente o chat para o final (última mensagem)
                 chat.scrollTop = chat.scrollHeight;
                 ultimaMsgCount = mensagens.length;
             }
@@ -227,11 +249,38 @@
         formData.append('texto', texto);
         if(imagem) formData.append('imagem', imagem);
 
+        // Limpa os campos imediatamente após o clique para melhorar a experiência
         document.getElementById('input-texto').value = "";
         document.getElementById('input-imagem').value = "";
 
         await fetch('api.php', { method: 'POST', body: formData });
         carregarMensagens();
+    }
+
+    async function limparChat() {
+        const senha = prompt("Digite a senha de administrador para apagar o histórico:");
+        if (!senha) return;
+
+        try {
+            const res = await fetch('api.php', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ senha: senha })
+            });
+
+            const resultado = await res.json();
+
+            if (res.ok && resultado.sucesso) {
+                alert(resultado.mensagem);
+                ultimaMsgCount = 0; // Força a renderização imediata do chat vazio
+                carregarMensagens();
+            } else {
+                alert(resultado.mensagem || "Erro ao tentar apagar.");
+            }
+        } catch (e) {
+            console.error("Erro na requisição:", e);
+            alert("Erro de conexão com o servidor.");
+        }
     }
 </script>
 
